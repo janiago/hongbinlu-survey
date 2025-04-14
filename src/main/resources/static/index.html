@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Survey Management</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7fa;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .config, .upload {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .config h2, .upload h2 {
+            margin-top: 0;
+            color: #34495e;
+            font-size: 1.5em;
+        }
+        .config label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .config input[type="text"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+        .config button, .upload button {
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+        .config button:hover, .upload button:hover {
+            background-color: #2980b9;
+        }
+        .upload form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .upload input[type="file"] {
+            flex-grow: 1;
+        }
+        .survey-list h2 {
+            color: #34495e;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+        .survey-item {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .survey-item a {
+            color: #3498db;
+            text-decoration: none;
+            margin-right: 15px;
+            font-weight: 500;
+        }
+        .survey-item a:hover {
+            text-decoration: underline;
+        }
+        .survey-item button {
+            background-color: #e74c3c;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.3s;
+        }
+        .survey-item button:hover {
+            background-color: #c0392b;
+        }
+        .survey-item img {
+            max-width: 100px;
+            height: auto;
+        }
+        @media (max-width: 600px) {
+            .survey-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .survey-item img, .survey-item button {
+                margin-top: 10px;
+            }
+            .upload form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Survey Management</h1>
+        
+        <div class="config">
+            <h2>Configure IP Address</h2>
+            <label for="ipAddress">IP Address:</label>
+            <input type="text" id="ipAddress" placeholder="Enter IP address">
+            <button onclick="saveIpAddress()">Save</button>
+        </div>
+
+        <div class="upload">
+            <h2>Upload New Survey</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" id="surveyFile" accept=".json" required>
+                <button type="submit">Upload</button>
+            </form>
+        </div>
+
+        <div class="survey-list">
+            <h2>Existing Surveys</h2>
+            <div id="surveyList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load current IP address
+        fetch('/api/config/ip')
+            .then(response => response.json())
+            .then(config => {
+                document.getElementById('ipAddress').value = config.ipAddress;
+            })
+            .catch(error => console.error('Error loading IP address:', error));
+
+        // Save IP address
+        function saveIpAddress() {
+            const ipAddress = document.getElementById('ipAddress').value.trim();
+            if (!ipAddress) {
+                alert('Please enter an IP address');
+                return;
+            }
+            fetch('/api/config/ip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ipAddress })
+            })
+            .then(response => response.text())
+            .then(() => {
+                alert('IP address saved successfully');
+                window.location.reload();
+            })
+            .catch(error => alert('Error saving IP address: ' + error));
+        }
+
+        // Load survey list
+        fetch('/api/surveys')
+            .then(response => response.json())
+            .then(surveys => {
+                const surveyList = document.getElementById('surveyList');
+                surveys.forEach(name => {
+                    const div = document.createElement('div');
+                    div.className = 'survey-item';
+                    div.innerHTML = `
+                        <div>
+                            <a href="/survey.html?name=${name}">${name}</a>
+                            <a href="/api/download/${name}" download>Download Responses</a>
+                            <button onclick="deleteSurvey('${name}')">Delete</button>
+                        </div>
+                        <img src="/api/qrcode/${name}" alt="QR Code for ${name}">
+                    `;
+                    surveyList.appendChild(div);
+                });
+            });
+
+        // Delete survey
+        function deleteSurvey(surveyName) {
+            if (confirm(`Are you sure you want to delete the survey "${surveyName}" and all its responses?`)) {
+                fetch(`/api/survey/${surveyName}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.text())
+                .then(() => {
+                    alert('Survey deleted successfully');
+                    window.location.reload();
+                })
+                .catch(error => alert('Error deleting survey: ' + error));
+            }
+        }
+
+        // Handle survey upload
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('surveyFile');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/api/survey', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(() => {
+                alert('Survey uploaded successfully');
+                window.location.reload();
+            })
+            .catch(error => alert('Error uploading survey: ' + error));
+        });
+    </script>
+</body>
+</html>
